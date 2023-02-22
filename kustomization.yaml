@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - 01-aap-controller-token.yaml
+  - 02-ztp-aap-sa.yaml                      # -> update .data.token and .data.host accordingly
+  - 03-ztp-aap-rbac.yaml                    # -> managedcluster is clusterwide need clusterrolebinding
+  - 04-ztp-aap-clusterrolebinding.yaml
+  - 05-ztp-aap-cronjob.yaml

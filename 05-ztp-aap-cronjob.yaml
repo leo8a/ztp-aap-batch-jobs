@@ -1,0 +1,57 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ztp-aap-cronjob
+  namespace: ztp-aap-integration
+spec:
+  schedule: "*/5 * * * *"               # -> "at every 5th minute"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 1500     # -> keeps latest 5 jobs
+      template:
+        spec:
+          containers:
+            - name: ztp-aap-cronjob
+              image: jumphost.inbound.vz.bos2.lab:5000/openshift4/ose-cli@sha256:728b0198d84b0730f17b07103d00391c18b8c4f2c9c75d64aa6b7aba83185d59
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  cat <<SCRIPT > /tmp/launch_aap_jobs
+                  #!/bin/bash
+                  echo $@
+
+                  set -euo pipefail
+
+                  target_managed_cluster=\$1
+                  namespace="ztp-aap-integration"
+                  secret_name="aap-controller-token"
+                  job_template_name="ztp-day2-automation-template"
+
+                  # 1) Get Automation Controller/Tower token for authentication
+                  function get_tower_token {
+                    token=\$(oc -n \$namespace get secret \$secret_name --output jsonpath="{.data.token}" | base64 --decode)
+                  }
+
+                  # 2) Get Automation Controller/Tower API endpoint
+                  function get_api_endpoint {
+                    api_url=\$(oc -n \$namespace get secret \$secret_name --output jsonpath="{.data.host}" | base64 --decode)
+                  }
+
+                  # 3) Launch job template in Automation Controller/Tower
+                  function launch_ansible_job {
+                    curl -k -H "Authorization: Bearer \$token" -H "Content-Type: application/json" -X POST -d '{"extra_vars": {"target_clusters": ["'\$target_managed_cluster'"]}}' \$api_url/api/v2/job_templates/\$job_template_name/launch/
+                    echo "Launching job template called \$job_template_name in Automation Controller/Tower for \$target_managed_cluster"
+                  }
+
+                  get_tower_token
+                  get_api_endpoint
+                  launch_ansible_job
+                  SCRIPT
+
+                  chmod u+x /tmp/launch_aap_jobs
+                  exec oc observe managedcluster --maximum-errors=1 --resync-period=5m --selector=name!=local-cluster,ztp-done,ztp-ansible!=running,ztp-ansible!=completed --exit-after=3s -- /tmp/launch_aap_jobs
+          restartPolicy: OnFailure
+          serviceAccountName: ztp-aap-sa

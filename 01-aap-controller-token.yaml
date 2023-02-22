@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: aap-controller-token
+  namespace: ztp-aap-integration
+  labels:
+    cluster.open-cluster-management.io/type: ans
+    cluster.open-cluster-management.io/credentials: ""
+stringData:
+  host: <aap_host_url_here>                           # <- variable provided by admin
+  token: <aap_token_here>                             # <- variable provided by admin
+  job_template: <job_template_name_here>              # <- variable provided by admin
